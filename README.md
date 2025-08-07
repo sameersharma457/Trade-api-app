@@ -34,18 +34,9 @@ pipenv shell
 pip install -r requirements.txt
 4. Configure Environment Variables
 Create a .env file in the root directory and add the following (edit as needed):
-DATABASE_URL=postgresql://<username>:<password>@localhost:5432/<database_name>
 SECRET_KEY=your_secret_key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
-5. Set Up the Database
-Make sure PostgreSQL is running and the database specified in DATABASE_URL exists.
-
-You can create the database using:
-createdb <database_name>
-6. Run Database Migrations
-If using Alembic (check if alembic is present):
-alembic upgrade head
 7. Start the Application
 uvicorn main:app --reload
 The API will be available at http://localhost:8000.
@@ -55,16 +46,3 @@ Visit http://localhost:8000/docs for interactive Swagger UI.
 
 Project Structure
 
-
-.
-├── app/
-│   ├── main.py
-│   ├── models.py
-│   ├── schemas.py
-│   ├── crud.py
-│   ├── database.py
-│   ├── auth.py
-│   └── ...
-├── requirements.txt
-├── README.md
-└── .env
