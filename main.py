@@ -54,7 +54,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure this properly for production
+    allow_origins=["*"],  
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -133,7 +133,7 @@ async def analyze_sector(
         
         sector = sector.strip().lower()
 
-        # Redis-backed rate limiter check
+        
         if not await rate_limiter_service.check_user_limit(current_user["username"]):
             raise RateLimitException("Rate limit exceeded for user")
 
