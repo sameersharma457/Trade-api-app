@@ -126,5 +126,5 @@ class RateLimiterService:
             return {"error": "Unable to retrieve global stats"}
 
     def cleanup_old_data(self) -> None:
-        # Redis handles TTL automatically
+        
         logger.debug("Redis handles cleanup via expiration")
