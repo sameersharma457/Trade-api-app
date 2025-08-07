@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any
 
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
 from fastapi.responses import JSONResponse
@@ -31,9 +31,7 @@ from app.utils.exceptions import (
     DataCollectionException
 )
 
-
 load_dotenv()
-
 
 logging.basicConfig(
     level=getattr(logging, os.getenv("LOG_LEVEL", "INFO")),
@@ -41,9 +39,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 limiter = Limiter(key_func=get_remote_address)
-
 
 app = FastAPI(
     title="Trade Opportunities API",
@@ -53,10 +49,8 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,9 +60,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 security = HTTPBearer()
-
 
 gemini_service = GeminiService()
 data_collector = DataCollector()
@@ -76,7 +68,6 @@ rate_limiter_service = RateLimiterService()
 
 @app.exception_handler(APIException)
 async def api_exception_handler(request, exc: APIException):
-    """Handle custom API exceptions"""
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": exc.detail, "type": exc.__class__.__name__}
@@ -84,7 +75,6 @@ async def api_exception_handler(request, exc: APIException):
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc: Exception):
-    """Handle general exceptions"""
     logger.error(f"Unhandled exception: {exc}")
     return JSONResponse(
         status_code=500,
@@ -93,7 +83,6 @@ async def general_exception_handler(request, exc: Exception):
 
 @app.get("/health", response_model=HealthCheck)
 async def health_check():
-    """Health check endpoint"""
     return HealthCheck(
         status="healthy",
         timestamp=datetime.utcnow(),
@@ -102,7 +91,6 @@ async def health_check():
 
 @app.post("/auth/register", response_model=Dict[str, str])
 async def register(user: UserCreate):
-    """Register a new user"""
     try:
         user_id = await create_user(user.username, user.email, user.password)
         return {"message": "User created successfully", "user_id": user_id}
@@ -115,7 +103,6 @@ async def register(user: UserCreate):
 
 @app.post("/auth/login", response_model=Token)
 async def login(user: UserLogin):
-    """Authenticate user and return JWT token"""
     try:
         user_data = await authenticate_user(user.username, user.password)
         if not user_data:
@@ -133,22 +120,11 @@ async def login(user: UserLogin):
 @app.get("/analyze/{sector}", response_model=AnalysisResponse)
 @limiter.limit("10/minute")
 async def analyze_sector(
-    request,
+    request: Request,
     sector: str,
     current_user: Dict = Depends(get_current_user)
 ):
-    """
-    Analyze trade opportunities for a specific sector
-    
-    Args:
-        sector: Name of the sector to analyze (e.g., pharmaceuticals, technology, agriculture)
-        current_user: Authenticated user information
-    
-    Returns:
-        Structured market analysis report
-    """
     try:
-        # Validate sector input
         if not sector or len(sector.strip()) < 2:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -156,21 +132,19 @@ async def analyze_sector(
             )
         
         sector = sector.strip().lower()
-        
-        
+
+        # Redis-backed rate limiter check
         if not await rate_limiter_service.check_user_limit(current_user["username"]):
             raise RateLimitException("Rate limit exceeded for user")
-        
+
         logger.info(f"Starting analysis for sector: {sector} by user: {current_user['username']}")
-        
-        
+
         try:
             market_data = await data_collector.collect_sector_data(sector)
         except Exception as e:
             logger.error(f"Data collection error: {e}")
             raise DataCollectionException("Failed to collect market data")
-        
-        
+
         try:
             analysis_report = await gemini_service.analyze_market_data(sector, market_data)
         except Exception as e:
@@ -179,11 +153,9 @@ async def analyze_sector(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="AI analysis service temporarily unavailable"
             )
-        
-        
+
         await rate_limiter_service.record_usage(current_user["username"])
-        
-        
+
         response = AnalysisResponse(
             sector=sector,
             analysis_date=datetime.utcnow(),
@@ -197,10 +169,10 @@ async def analyze_sector(
                 "data_points": len(market_data.get("news", [])),
             }
         )
-        
+
         logger.info(f"Analysis completed for sector: {sector}")
         return response
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -212,7 +184,6 @@ async def analyze_sector(
 
 @app.get("/sectors", response_model=Dict[str, Any])
 async def get_supported_sectors(current_user: Dict = Depends(get_current_user)):
-    """Get list of supported sectors for analysis"""
     sectors = [
         "pharmaceuticals",
         "technology", 
@@ -234,7 +205,6 @@ async def get_supported_sectors(current_user: Dict = Depends(get_current_user)):
 
 @app.get("/usage", response_model=Dict[str, Any])
 async def get_usage_stats(current_user: Dict = Depends(get_current_user)):
-    """Get usage statistics for the current user"""
     stats = await rate_limiter_service.get_user_stats(current_user["username"])
     return {
         "user": current_user["username"],
